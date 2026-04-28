@@ -89,11 +89,13 @@ jobs:
       - name: Terraform Plan
         working-directory: pillars/dev
         run: |
+          CLEAN_VERSION=$(echo "${{ needs.versioning.outputs.version }}" | sed 's/^v//' | tr '.' '-')
           terraform plan \
-          -var="app_version=${{ needs.versioning.outputs.version }}"
-
+            -var="app_version=$CLEAN_VERSION"
+      
       - name: Terraform Apply
         working-directory: pillars/dev
         run: |
+          CLEAN_VERSION=$(echo "${{ needs.versioning.outputs.version }}" | sed 's/^v//' | tr '.' '-')
           terraform apply -auto-approve \
-          -var="app_version=${{ needs.versioning.outputs.version }}"
+            -var="app_version=$CLEAN_VERSION"
