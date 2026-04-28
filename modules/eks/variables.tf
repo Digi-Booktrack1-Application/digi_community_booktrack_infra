@@ -19,3 +19,12 @@ variable "security_group_ids" {
   type    = list(string)
   default = []
 }
+
+variable "eks_addons" {
+  description = "Map of EKS addons and their versions"
+  type = map(object({
+    addon_version = string
+  }))
+
+  default = {}
+}

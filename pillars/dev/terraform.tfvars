@@ -1,5 +1,5 @@
 cluster_name       = "eks-dev"
-kubernetes_version = "1.29"
+kubernetes_version = "1.30"
 
 node_group_name = "node-dev"
 
@@ -11,4 +11,20 @@ pillar_name   = "devops_dev"
 customer_name = "acme"
 file_name     = "eks"
 
-version = "v1.0.0"
+eks_addons = {
+  "vpc-cni" = {
+    addon_version = "v1.18.1-eksbuild.1"
+  }
+
+  "coredns" = {
+    addon_version = "v1.11.1-eksbuild.4"
+  }
+
+  "kube-proxy" = {
+    addon_version = "v1.29.0-eksbuild.1"
+  }
+
+  "aws-ebs-csi-driver" = {
+    addon_version = "v1.31.0-eksbuild.1"
+  }
+}

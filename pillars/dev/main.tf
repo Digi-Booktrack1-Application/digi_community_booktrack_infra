@@ -16,4 +16,5 @@ module "eks" {
   pillar_name   = var.pillar_name
   customer_name = var.customer_name
   file_name     = var.file_name
+  eks_addons    = var.eks_addons
 }
