@@ -84,7 +84,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: pillars/dev
-        run: terraform init
+        run: terraform init -upgrade
 
       - name: Terraform Plan
         working-directory: pillars/dev
