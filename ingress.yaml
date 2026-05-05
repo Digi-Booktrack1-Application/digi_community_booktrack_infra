@@ -15,12 +15,12 @@ spec:
   ingressClassName: alb
   rules:
 
-    # 🔷 MAIN DOMAIN
+    # MAIN DOMAIN
     - host: softwarestack.xyz
       http:
         paths:
 
-          # ✅ Customer Frontend
+          # Customer Frontend
           - path: /
             pathType: Prefix
             backend:
@@ -29,7 +29,7 @@ spec:
                 port:
                   number: 80
 
-          # ✅ Auth API
+          # Auth API
           - path: /auth
             pathType: Prefix
             backend:
@@ -38,7 +38,7 @@ spec:
                 port:
                   number: 8001
 
-          # ✅ Product API
+          # Product API
           - path: /products
             pathType: Prefix
             backend:
@@ -47,7 +47,7 @@ spec:
                 port:
                   number: 8002
 
-          # ✅ Order API
+          # Order API
           - path: /order
             pathType: Prefix
             backend:
@@ -56,7 +56,7 @@ spec:
                 port:
                   number: 8003
 
-          # ✅ Tracking API
+          # Tracking API
           - path: /tracking
             pathType: Prefix
             backend:
@@ -65,7 +65,7 @@ spec:
                 port:
                   number: 8004
 
-    # 🔷 ADMIN DOMAIN
+    # ADMIN DOMAIN
     - host: admin.softwarestack.xyz
       http:
         paths:
