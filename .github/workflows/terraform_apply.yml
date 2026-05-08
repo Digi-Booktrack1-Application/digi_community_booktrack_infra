@@ -1,32 +1,41 @@
 name: Terraform EKS CI/CD
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select Environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
 
 permissions:
   id-token: write
-  contents: write    
+  contents: write
 
 jobs:
 
-  #########################################
-  # VERSIONING JOB
-  #########################################
+# #########################################
+# VERSIONING JOB
+# #########################################
 
   versioning:
     runs-on: ubuntu-latest
+
     outputs:
       version: ${{ steps.bump.outputs.version }}
 
     steps:
+
       - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Read & Increment Version
         id: bump
         run: |
+
           FILE="version.txt"
 
           if [ ! -f $FILE ]; then
@@ -41,8 +50,6 @@ jobs:
           MINOR=$(echo $VERSION | cut -d. -f2)
           PATCH=$(echo $VERSION | cut -d. -f3)
 
-          # CHANGE LOGIC HERE
-          # patch bump (default)
           PATCH=$((PATCH+1))
 
           NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
@@ -55,47 +62,83 @@ jobs:
 
       - name: Commit Updated Version
         run: |
+
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+
           git add version.txt
+
           git commit -m "Auto bump version to ${{ steps.bump.outputs.version }}"
+
           git push
 
-  #########################################
-  # TERRAFORM DEPLOY
-  #########################################
+# #########################################
+# TERRAFORM DEPLOY
+# #########################################
 
   deploy:
     needs: versioning
+
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      # SELECT AWS ROLE + PATH
+      - name: Set Environment Variables
+        id: env
+        run: |
+
+          ENVIRONMENT="${{ github.event.inputs.environment }}"
+
+          if [ "$ENVIRONMENT" = "dev" ]; then
+
+            echo "ROLE=${{ secrets.DEV_AWS_ROLE_ARN }}" >> $GITHUB_OUTPUT
+
+            echo "TF_PATH=pillars/dev" >> $GITHUB_OUTPUT
+
+          elif [ "$ENVIRONMENT" = "prod" ]; then
+
+            echo "ROLE=${{ secrets.PROD_AWS_ROLE_ARN }}" >> $GITHUB_OUTPUT
+
+            echo "TF_PATH=pillars/prod" >> $GITHUB_OUTPUT
+
+          fi
+
+      # AWS LOGIN
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ steps.env.outputs.ROLE }}
 
+      # TERRAFORM
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      # INIT
       - name: Terraform Init
-        working-directory: pillars/dev
+        working-directory: ${{ steps.env.outputs.TF_PATH }}
         run: terraform init -upgrade
 
+      # PLAN
       - name: Terraform Plan
-        working-directory: pillars/dev
+        working-directory: ${{ steps.env.outputs.TF_PATH }}
         run: |
-          CLEAN_VERSION=$(echo "${{ needs.versioning.outputs.version }}" | sed 's/^v//' | tr '.' '-')
+
+          VERSION="${{ needs.versioning.outputs.version }}"
+
           terraform plan \
-            -var="app_version=$CLEAN_VERSION"
-      
+            -var="app_version=$VERSION"
+
+      # APPLY
       - name: Terraform Apply
-        working-directory: pillars/dev
+        working-directory: ${{ steps.env.outputs.TF_PATH }}
         run: |
-          CLEAN_VERSION=$(echo "${{ needs.versioning.outputs.version }}" | sed 's/^v//' | tr '.' '-')
+
+          VERSION="${{ needs.versioning.outputs.version }}"
+
           terraform apply -auto-approve \
-            -var="app_version=$CLEAN_VERSION"
+            -var="app_version=$VERSION"
