@@ -86,7 +86,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # SELECT AWS ROLE + PATH
+      # SELECT TERRAFORM PATH
       - name: Set Environment Variables
         id: env
         run: |
@@ -95,13 +95,9 @@ jobs:
 
           if [ "$ENVIRONMENT" = "dev" ]; then
 
-            echo "ROLE=${{ secrets.DEV_AWS_ROLE_ARN }}" >> $GITHUB_OUTPUT
-
             echo "TF_PATH=pillars/dev" >> $GITHUB_OUTPUT
 
           elif [ "$ENVIRONMENT" = "prod" ]; then
-
-            echo "ROLE=${{ secrets.PROD_AWS_ROLE_ARN }}" >> $GITHUB_OUTPUT
 
             echo "TF_PATH=pillars/prod" >> $GITHUB_OUTPUT
 
@@ -112,7 +108,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-to-assume: ${{ steps.env.outputs.ROLE }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
       # TERRAFORM
       - name: Setup Terraform
