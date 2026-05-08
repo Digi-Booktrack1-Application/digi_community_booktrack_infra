@@ -1,48 +1,32 @@
 name: Terraform EKS CI/CD
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Select Environment"
-        required: true
-        type: choice
-        options:
-          - dev
-          - prod
-
-# PREVENT MULTIPLE TERRAFORM RUNS
-concurrency:
-  group: terraform-${{ github.event.inputs.environment }}
-  cancel-in-progress: false
+  push:
+    branches:
+      - main
 
 permissions:
   id-token: write
-  contents: write
+  contents: write    
 
 jobs:
 
-# #########################################
-# VERSIONING JOB
-# #########################################
+  #########################################
+  # VERSIONING JOB
+  #########################################
 
   versioning:
     runs-on: ubuntu-latest
-
     outputs:
       version: ${{ steps.bump.outputs.version }}
 
     steps:
-
-      # CHECKOUT
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # VERSION INCREMENT
       - name: Read & Increment Version
         id: bump
         run: |
-
           FILE="version.txt"
 
           if [ ! -f $FILE ]; then
@@ -57,7 +41,9 @@ jobs:
           MINOR=$(echo $VERSION | cut -d. -f2)
           PATCH=$(echo $VERSION | cut -d. -f3)
 
-          PATCH=$((PATCH + 1))
+          # CHANGE LOGIC HERE
+          # patch bump (default)
+          PATCH=$((PATCH+1))
 
           NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
 
@@ -67,100 +53,49 @@ jobs:
 
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-      # COMMIT VERSION
       - name: Commit Updated Version
         run: |
-
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
           git add version.txt
-
-          git commit -m "Auto bump version to ${{ steps.bump.outputs.version }}" || echo "No changes"
-
+          git commit -m "Auto bump version to ${{ steps.bump.outputs.version }}"
           git push
 
-# #########################################
-# TERRAFORM DEPLOY
-# #########################################
+  #########################################
+  # TERRAFORM DEPLOY
+  #########################################
 
   deploy:
     needs: versioning
-
     runs-on: ubuntu-latest
 
     steps:
-
-      # CHECKOUT
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # SELECT ENVIRONMENT
-      - name: Set Environment Variables
-        id: env
-        run: |
-
-          ENVIRONMENT="${{ github.event.inputs.environment }}"
-
-          echo "Selected environment: $ENVIRONMENT"
-
-          if [ "$ENVIRONMENT" = "dev" ]; then
-
-            echo "TF_PATH=pillars/dev" >> $GITHUB_OUTPUT
-
-          elif [ "$ENVIRONMENT" = "prod" ]; then
-
-            echo "TF_PATH=pillars/prod" >> $GITHUB_OUTPUT
-
-          else
-
-            echo "Invalid environment selected"
-            exit 1
-
-          fi
-
-      # AWS LOGIN
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
-      # TERRAFORM SETUP
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # TERRAFORM INIT
       - name: Terraform Init
-        working-directory: ${{ steps.env.outputs.TF_PATH }}
-        run: |
-          terraform init -upgrade
+        working-directory: pillars/dev
+        run: terraform init -upgrade
 
-      # TERRAFORM VALIDATE
-      - name: Terraform Validate
-        working-directory: ${{ steps.env.outputs.TF_PATH }}
-        run: |
-          terraform validate
-
-      # TERRAFORM PLAN
       - name: Terraform Plan
-        working-directory: ${{ steps.env.outputs.TF_PATH }}
+        working-directory: pillars/dev
         run: |
-
-          VERSION="${{ needs.versioning.outputs.version }}"
-
+          CLEAN_VERSION=$(echo "${{ needs.versioning.outputs.version }}" | sed 's/^v//' | tr '.' '-')
           terraform plan \
-            -lock-timeout=10m \
-            -var="app_version=$VERSION"
-
-      # TERRAFORM APPLY
+            -var="app_version=$CLEAN_VERSION"
+      
       - name: Terraform Apply
-        working-directory: ${{ steps.env.outputs.TF_PATH }}
+        working-directory: pillars/dev
         run: |
-
-          VERSION="${{ needs.versioning.outputs.version }}"
-
-          terraform apply \
-            -auto-approve \
-            -lock-timeout=10m \
-            -var="app_version=$VERSION"
+          CLEAN_VERSION=$(echo "${{ needs.versioning.outputs.version }}" | sed 's/^v//' | tr '.' '-')
+          terraform apply -auto-approve \
+            -var="app_version=$CLEAN_VERSION"
