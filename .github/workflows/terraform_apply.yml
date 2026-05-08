@@ -11,6 +11,11 @@ on:
           - dev
           - prod
 
+# PREVENT MULTIPLE TERRAFORM RUNS
+concurrency:
+  group: terraform-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: write
@@ -29,9 +34,11 @@ jobs:
 
     steps:
 
+      # CHECKOUT
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      # VERSION INCREMENT
       - name: Read & Increment Version
         id: bump
         run: |
@@ -50,7 +57,7 @@ jobs:
           MINOR=$(echo $VERSION | cut -d. -f2)
           PATCH=$(echo $VERSION | cut -d. -f3)
 
-          PATCH=$((PATCH+1))
+          PATCH=$((PATCH + 1))
 
           NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
 
@@ -60,6 +67,7 @@ jobs:
 
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
+      # COMMIT VERSION
       - name: Commit Updated Version
         run: |
 
@@ -68,7 +76,7 @@ jobs:
 
           git add version.txt
 
-          git commit -m "Auto bump version to ${{ steps.bump.outputs.version }}"
+          git commit -m "Auto bump version to ${{ steps.bump.outputs.version }}" || echo "No changes"
 
           git push
 
@@ -83,15 +91,18 @@ jobs:
 
     steps:
 
+      # CHECKOUT
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # SELECT TERRAFORM PATH
+      # SELECT ENVIRONMENT
       - name: Set Environment Variables
         id: env
         run: |
 
           ENVIRONMENT="${{ github.event.inputs.environment }}"
+
+          echo "Selected environment: $ENVIRONMENT"
 
           if [ "$ENVIRONMENT" = "dev" ]; then
 
@@ -100,6 +111,11 @@ jobs:
           elif [ "$ENVIRONMENT" = "prod" ]; then
 
             echo "TF_PATH=pillars/prod" >> $GITHUB_OUTPUT
+
+          else
+
+            echo "Invalid environment selected"
+            exit 1
 
           fi
 
@@ -110,16 +126,23 @@ jobs:
           aws-region: us-east-1
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
-      # TERRAFORM
+      # TERRAFORM SETUP
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # INIT
+      # TERRAFORM INIT
       - name: Terraform Init
         working-directory: ${{ steps.env.outputs.TF_PATH }}
-        run: terraform init -upgrade
+        run: |
+          terraform init -upgrade
 
-      # PLAN
+      # TERRAFORM VALIDATE
+      - name: Terraform Validate
+        working-directory: ${{ steps.env.outputs.TF_PATH }}
+        run: |
+          terraform validate
+
+      # TERRAFORM PLAN
       - name: Terraform Plan
         working-directory: ${{ steps.env.outputs.TF_PATH }}
         run: |
@@ -127,14 +150,17 @@ jobs:
           VERSION="${{ needs.versioning.outputs.version }}"
 
           terraform plan \
+            -lock-timeout=10m \
             -var="app_version=$VERSION"
 
-      # APPLY
+      # TERRAFORM APPLY
       - name: Terraform Apply
         working-directory: ${{ steps.env.outputs.TF_PATH }}
         run: |
 
           VERSION="${{ needs.versioning.outputs.version }}"
 
-          terraform apply -auto-approve \
+          terraform apply \
+            -auto-approve \
+            -lock-timeout=10m \
             -var="app_version=$VERSION"
