@@ -1,4 +1,4 @@
-cluster_name       = "eks-dev"
+cluster_name       = "eks-production"
 kubernetes_version = "1.29"
 
 node_group_name = "node-prod"
