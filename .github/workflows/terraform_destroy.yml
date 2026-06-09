@@ -39,6 +39,24 @@ jobs:
         working-directory: pillars/dev
         run: terraform init
 
+      - name: Delete EKS Volumes
+        run: |
+          echo "Finding EBS volumes with Name starting with eks-dev..."
+
+          aws ec2 describe-volumes \
+            --region us-east-1 \
+            --filters Name=status,Values=available \
+            --query "Volumes[*].[VolumeId,Tags[?Key=='Name']|[0].Value]" \
+            --output text |
+          while read VOL_ID VOL_NAME; do
+            if [[ "$VOL_NAME" == eks-dev* ]]; then
+              echo "Deleting volume: $VOL_ID ($VOL_NAME)"
+              aws ec2 delete-volume \
+                --volume-id $VOL_ID \
+                --region us-east-1
+            fi
+          done
+
       - name: Terraform Destroy
         working-directory: pillars/dev
         run: terraform destroy -auto-approve
